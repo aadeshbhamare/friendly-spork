@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { GOOGLE_CLIENT_ID } from '../lib/authConfig';
 import styles from './SupabaseAuth.module.css';
 
 export default function SupabaseAuth() {
@@ -12,13 +13,10 @@ export default function SupabaseAuth() {
   useEffect(() => {
     // Subscribe to auth state changes to react to redirects/popups
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-      // Typical events: SIGNED_IN, SIGNED_OUT, USER_UPDATED
       console.log('onAuthStateChange', event, session);
       if (event === 'SIGNED_IN') {
         setMessage('Signed in successfully');
         setError(null);
-        // Redirect or reload as needed
-        // window.location.href = '/';
       }
       if (event === 'SIGNED_OUT') {
         setMessage('Signed out');
@@ -35,7 +33,18 @@ export default function SupabaseAuth() {
     setError(null);
     setMessage(null);
     try {
-      const { error: signInError } = await supabase.auth.signInWithOAuth({ provider });
+      // Make sure redirectTo points back to our callback page so we properly complete the flow
+      const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
+
+      const { error: signInError } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo,
+          // queryParams are forwarded to the provider. Including client_id is harmless for public ID.
+          queryParams: { client_id: GOOGLE_CLIENT_ID },
+        },
+      } as any);
+
       if (signInError) {
         setError(signInError.message);
       } else {
@@ -78,7 +87,6 @@ export default function SupabaseAuth() {
         setError(signInError.message);
       } else if (data?.session) {
         setMessage('Signed in successfully');
-        // window.location.href = '/';
       }
     } catch (err: any) {
       setError(err?.message ?? String(err));
@@ -123,7 +131,7 @@ export default function SupabaseAuth() {
           <button type="submit" disabled={loading}>
             Sign in
           </button>
-          <button onClick={handleEmailSignUp} disabled={loading}>
+          <button type="button" onClick={handleEmailSignUp} disabled={loading}>
             Create account
           </button>
         </div>
