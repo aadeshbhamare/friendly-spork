@@ -1,0 +1,26 @@
+:root{
+  --bg:#0f1720;
+  --card:#0b1220;
+  --muted:#94a3b8;
+  --danger:#ef4444;
+  --accent:#0b95f6;
+}
+
+.container{
+  background:var(--card);
+  color:#fff;
+  padding:16px;
+  border-radius:8px;
+  max-width:420px;
+}
+
+.oauthRow{display:flex;gap:8px;margin-bottom:12px}
+.google{background:#fff;color:#111;padding:8px 12px;border-radius:6px;border:0}
+.github{background:#111;color:#fff;padding:8px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.06)}
+
+.form{display:flex;flex-direction:column;gap:8px}
+.form input{padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:#fff}
+
+.error{background:rgba(239,68,68,0.12);padding:8px;border-radius:6px;color:var(--danger)}
+.message{background:rgba(16,185,129,0.06);padding:8px;border-radius:6px;color:#8ef0c1}
+.hint{margin-top:12px;color:var(--muted);font-size:13px}
