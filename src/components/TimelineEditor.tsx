@@ -16,6 +16,20 @@ export default function TimelineEditor() {
   const [lyricsText, setLyricsText] = useState<string>('');
   const [transcribing, setTranscribing] = useState(false);
 
+  // new toggles for options ON/OFF
+  const [opts, setOpts] = useState({
+    autoTranscribe: true,
+    alignLyrics: true,
+    showCaptions: true,
+    animateCaptions: true,
+    karaoke: false,
+    autoSplitLines: true,
+  });
+
+  function toggleOpt(key: keyof typeof opts) {
+    setOpts((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
   function addTextClip() {
     const id = 'c' + (timeline.length + 1);
     setTimeline([...timeline, { id, type: 'text', duration: 3, data: { text: 'New text', fontSize: 48 } }]);
@@ -90,22 +104,6 @@ export default function TimelineEditor() {
     }
   }
 
-  // New: load a working demo immediately (no transcription required)
-  function loadDemo() {
-    // Public small sample audio; replace with your own hosted demo if desired
-    const demoAudio = 'https://file-examples.com/wp-content/uploads/2017/11/file_example_MP3_700KB.mp3';
-    setAudioUrl(demoAudio);
-    setAudioFile(null);
-    // Simple demo captions timed over first 12 seconds
-    const demoCaptions = [
-      { text: 'This is the first demo line', start: 0.5, end: 3.5 },
-      { text: 'Here comes the second line', start: 4.0, end: 7.0 },
-      { text: 'And a short third line', start: 7.5, end: 11.0 },
-    ];
-    setCaptions(demoCaptions);
-    setLyricsText(demoCaptions.map((c) => c.text).join('\n'));
-  }
-
   function startEditing() {
     setEditing(true);
   }
@@ -125,24 +123,62 @@ export default function TimelineEditor() {
     });
   }
 
+  // demo helper
+  function loadDemo() {
+    const demoAudio = 'https://file-examples.com/wp-content/uploads/2017/11/file_example_MP3_700KB.mp3';
+    setAudioUrl(demoAudio);
+    setAudioFile(null);
+    const demoCaptions = [
+      { text: 'This is the first demo line', start: 0.5, end: 3.5 },
+      { text: 'Here comes the second line', start: 4.0, end: 7.0 },
+      { text: 'And a short third line', start: 7.5, end: 11.0 },
+    ];
+    setCaptions(demoCaptions);
+    setLyricsText(demoCaptions.map((c) => c.text).join('\n'));
+  }
+
   return (
     <div style={{ display: 'flex', gap: 20 }}>
       <div style={{ flex: 1 }}>
         <h3>Timeline Editor</h3>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
           <button onClick={addTextClip}>Add Text Clip</button>
           <button onClick={addShapeClip}>Add Shape Clip</button>
           <label style={{ display: 'inline-block' }}>
             Upload audio
             <input type="file" accept="audio/*" onChange={handleAudioUpload} style={{ display: 'block' }} />
           </label>
-          <button onClick={handleAutoTranscribe} disabled={transcribing || !audioFile}>
+          <button onClick={() => opts.autoTranscribe && handleAutoTranscribe()} disabled={transcribing || !audioFile}>
             {transcribing ? 'Transcribing...' : 'Auto-transcribe audio'}
           </button>
-          <button onClick={handleAlignLyrics} disabled={transcribing || !audioFile || !lyricsText}>
+          <button onClick={() => opts.alignLyrics && handleAlignLyrics()} disabled={transcribing || !audioFile || !lyricsText}>
             {transcribing ? 'Aligning...' : 'Align lyrics'}
           </button>
           <button onClick={loadDemo}>Load demo (works immediately)</button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+          <div style={{ padding: 12, background: '#0d1722', borderRadius: 8 }}>
+            <h4 style={{ margin: '0 0 8px 0' }}>Options</h4>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="checkbox" checked={opts.autoTranscribe} onChange={() => toggleOpt('autoTranscribe')} /> Auto-transcribe
+            </label>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="checkbox" checked={opts.alignLyrics} onChange={() => toggleOpt('alignLyrics')} /> Align lyrics (use pasted lyrics)
+            </label>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="checkbox" checked={opts.showCaptions} onChange={() => toggleOpt('showCaptions')} /> Show captions
+            </label>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="checkbox" checked={opts.animateCaptions} onChange={() => toggleOpt('animateCaptions')} /> Animate captions
+            </label>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="checkbox" checked={opts.karaoke} onChange={() => toggleOpt('karaoke')} /> Karaoke highlighting
+            </label>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input type="checkbox" checked={opts.autoSplitLines} onChange={() => toggleOpt('autoSplitLines')} /> Auto-split lines
+            </label>
+          </div>
         </div>
 
         <div>
@@ -183,7 +219,15 @@ export default function TimelineEditor() {
       <div style={{ width: 720 }}>
         <h3>Preview</h3>
         <canvas ref={canvasRef} style={{ width: '100%', borderRadius: 8, background: '#071024' }} />
-        <CanvasTimelinePlayer canvasRef={canvasRef} timeline={timeline} captions={captions} audioRef={audioRef} />
+        <CanvasTimelinePlayer
+          canvasRef={canvasRef}
+          timeline={timeline}
+          captions={captions}
+          audioRef={audioRef}
+          showCaptions={opts.showCaptions}
+          animateCaptions={opts.animateCaptions}
+          karaoke={opts.karaoke}
+        />
         <audio ref={audioRef} src={audioUrl ?? undefined} controls style={{ marginTop: 8, width: '100%' }} />
       </div>
     </div>
