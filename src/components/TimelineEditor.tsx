@@ -90,6 +90,22 @@ export default function TimelineEditor() {
     }
   }
 
+  // New: load a working demo immediately (no transcription required)
+  function loadDemo() {
+    // Public small sample audio; replace with your own hosted demo if desired
+    const demoAudio = 'https://file-examples.com/wp-content/uploads/2017/11/file_example_MP3_700KB.mp3';
+    setAudioUrl(demoAudio);
+    setAudioFile(null);
+    // Simple demo captions timed over first 12 seconds
+    const demoCaptions = [
+      { text: 'This is the first demo line', start: 0.5, end: 3.5 },
+      { text: 'Here comes the second line', start: 4.0, end: 7.0 },
+      { text: 'And a short third line', start: 7.5, end: 11.0 },
+    ];
+    setCaptions(demoCaptions);
+    setLyricsText(demoCaptions.map((c) => c.text).join('\n'));
+  }
+
   function startEditing() {
     setEditing(true);
   }
@@ -126,6 +142,7 @@ export default function TimelineEditor() {
           <button onClick={handleAlignLyrics} disabled={transcribing || !audioFile || !lyricsText}>
             {transcribing ? 'Aligning...' : 'Align lyrics'}
           </button>
+          <button onClick={loadDemo}>Load demo (works immediately)</button>
         </div>
 
         <div>
