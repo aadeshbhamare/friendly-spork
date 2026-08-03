@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-
 import type { Clip } from './CanvasTimelinePlayer';
 
 type Props = {
@@ -9,67 +8,112 @@ type Props = {
   captions: { text: string; start: number; end: number }[];
 };
 
-export default function RecorderControls({ canvasRef, audioRef, timeline, captions }: Props) {
+export default function RecorderControls({ canvasRef, audioRef, timeline }: Props) {
   const [recording, setRecording] = useState(false);
   const [lastUrl, setLastUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function startRecording() {
+    setError(null);
     const canvas = canvasRef.current;
-    if (!canvas) return alert('No canvas to record');
+    if (!canvas) return setError('No canvas to record');
+
     const videoStream = (canvas as any).captureStream?.(60);
-    if (!videoStream) return alert('captureStream not supported in this browser');
+    if (!videoStream) return setError('captureStream not supported in this browser');
 
-    const audioStream = audioRef?.current?.captureStream?.();
-    const combined = new MediaStream([...videoStream.getVideoTracks(), ...(audioStream ? audioStream.getAudioTracks() : [])]);
+    let audioStream: MediaStream | null = null;
+    try {
+      audioStream = audioRef?.current?.captureStream ? audioRef.current!.captureStream() : null;
+    } catch (e) {
+      console.warn('audio.captureStream error', e);
+      audioStream = null;
+    }
 
-    const mimeType = 'video/webm;codecs=vp9,opus';
+    const tracks = [...videoStream.getVideoTracks(), ...(audioStream ? audioStream.getAudioTracks() : [])];
+    const combined = new MediaStream(tracks);
+
+    const preferred = [
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp8,opus',
+      'video/webm',
+    ];
+    let mimeType: string | undefined;
+    for (const t of preferred) {
+      if (typeof MediaRecorder !== 'undefined' && (MediaRecorder as any).isTypeSupported && (MediaRecorder as any).isTypeSupported(t)) {
+        mimeType = t;
+        break;
+      }
+    }
+
     let recorder: MediaRecorder;
     try {
-      recorder = new MediaRecorder(combined, { mimeType });
-    } catch (e) {
-      recorder = new MediaRecorder(combined);
+      recorder = mimeType ? new MediaRecorder(combined, { mimeType }) : new MediaRecorder(combined);
+    } catch (err: any) {
+      console.error('MediaRecorder init failed', err);
+      return setError('MediaRecorder not available or mimeType unsupported: ' + (err?.message ?? err));
     }
 
     const chunks: BlobPart[] = [];
     recorder.ondataavailable = (e) => {
       if (e.data && e.data.size) chunks.push(e.data);
     };
-
+    recorder.onerror = (ev) => {
+      console.error('MediaRecorder error', ev);
+      setError('Recording error: ' + String((ev as any).error?.message || ev));
+    };
+    recorder.onstart = () => console.log('recorder started');
     recorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'video/webm' });
+      console.log('recorder stopped, chunks:', chunks.length);
+      if (!chunks.length) {
+        setError('No recorded data (chunks empty).');
+        setRecording(false);
+        return;
+      }
+      const blob = new Blob(chunks, { type: (chunks[0] instanceof Blob && (chunks[0] as Blob).type) || 'video/webm' });
       const url = URL.createObjectURL(blob);
       setLastUrl(url);
+
       const a = document.createElement('a');
+      a.style.display = 'none';
       a.href = url;
       a.download = `timeline-${Date.now()}.webm`;
+      document.body.appendChild(a);
       a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+      }, 1000);
+
       setRecording(false);
-      if (audioRef.current) audioRef.current.pause();
     };
 
-    // start playing audio and start recorder
-    if (audioRef.current) {
+    // ensure audio playback (user gesture may be needed)
+    if (audioRef.current && audioStream) {
       try {
         await audioRef.current.play();
       } catch (err) {
-        console.warn('audio play failed', err);
+        console.warn('Audio play blocked; user gesture needed', err);
+        setError('Browser blocked audio autoplay. Click the play button on the audio element and try recording again.');
+        return;
       }
     }
 
     recorder.start();
     setRecording(true);
 
-    // compute total duration
-    const totalDuration = timeline.reduce((s, c) => s + c.duration, 0);
-    // stop after duration
+    const totalDuration = Math.max(0.5, timeline.reduce((s, c) => s + (c.duration || 0), 0));
     setTimeout(() => {
-      if (recorder.state === 'recording') recorder.stop();
-    }, (totalDuration + 0.5) * 1000);
+      try {
+        if (recorder.state === 'recording') recorder.stop();
+      } catch (e) {
+        console.warn('stop error', e);
+      }
+    }, (totalDuration + 0.6) * 1000);
   }
 
   return (
     <div>
-      <button onClick={startRecording} disabled={recording}>
+      {error ? <div style={{ color: 'salmon', marginBottom: 8 }}>Error: {error}</div> : null}
+      <button onClick={startRecording} disabled={recording} style={{ marginRight: 8 }}>
         {recording ? 'Recording...' : 'Record timeline'}
       </button>
       {lastUrl && (
