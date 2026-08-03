@@ -1,0 +1,17 @@
+// Patch: add StyleSuggestions integration into TimelineEditor
+// This is a small incremental patch to show where to place the new component. 
+// Please add the following import at the top of your TimelineEditor.tsx:
+// import StyleSuggestions from './StyleSuggestions';
+
+// And inside the left-side controls where you handle Lottie clips and upload, add:
+
+/*
+  <div style={{ marginTop: 12 }}>
+    <h4>Style suggestions</h4>
+    <StyleSuggestions targetClipId={selectedClipId ?? null} onApplyStyle={(clipId, style) => {
+      // apply a lightweight "style" marker to the clip so CanvasTimelinePlayer can adapt
+      setTimeline(prev => prev.map(c => c.id === clipId ? { ...c, data: { ...c.data, appliedStyle: style.id } } : c));
+      alert(`Applied style ${style.name} to clip ${clipId}. If the style has a Lottie template, implement swapping in clip.data.animationData.`);
+    }} />
+  </div>
+*/
