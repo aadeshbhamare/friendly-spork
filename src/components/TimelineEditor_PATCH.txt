@@ -1,0 +1,7 @@
+// additions to src/components/TimelineEditor.tsx
+// - autoApply toggle persisted in localStorage
+// - palette mapping saved in localStorage
+// - demo assets (data URLs) and "Load demo image+animation" button
+// - WaveformScrubber integrated into Edit captions panel
+
+// Note: This file is an incremental patch; ensure the rest of TimelineEditor imports WaveformScrubber

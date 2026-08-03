@@ -13,6 +13,30 @@ export default function RecorderControls({ canvasRef, audioRef, timeline }: Prop
   const [lastUrl, setLastUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  async function uploadFallback(blob: Blob, filename = 'recording.webm') {
+    try {
+      const ab = await blob.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(ab)));
+      const res = await fetch('/api/upload-recording', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blobBase64: base64, filename }),
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || 'upload failed');
+      }
+      const j = await res.json();
+      if (j.url) {
+        setLastUrl(j.url);
+        window.open(j.url, '_blank');
+      }
+    } catch (err: any) {
+      console.error('uploadFallback failed', err);
+      setError('Upload fallback failed: ' + (err?.message ?? String(err)));
+    }
+  }
+
   async function startRecording() {
     setError(null);
     const canvas = canvasRef.current;
@@ -62,7 +86,7 @@ export default function RecorderControls({ canvasRef, audioRef, timeline }: Prop
       setError('Recording error: ' + String((ev as any).error?.message || ev));
     };
     recorder.onstart = () => console.log('recorder started');
-    recorder.onstop = () => {
+    recorder.onstop = async () => {
       console.log('recorder stopped, chunks:', chunks.length);
       if (!chunks.length) {
         setError('No recorded data (chunks empty).');
@@ -73,20 +97,22 @@ export default function RecorderControls({ canvasRef, audioRef, timeline }: Prop
       const url = URL.createObjectURL(blob);
       setLastUrl(url);
 
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = `timeline-${Date.now()}.webm`;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        document.body.removeChild(a);
-      }, 1000);
+      try {
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `timeline-${Date.now()}.webm`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { document.body.removeChild(a); }, 1000);
+      } catch (err) {
+        console.warn('anchor click failed, uploading as fallback', err);
+        await uploadFallback(blob);
+      }
 
       setRecording(false);
     };
 
-    // ensure audio playback (user gesture may be needed)
     if (audioRef.current && audioStream) {
       try {
         await audioRef.current.play();
@@ -102,11 +128,7 @@ export default function RecorderControls({ canvasRef, audioRef, timeline }: Prop
 
     const totalDuration = Math.max(0.5, timeline.reduce((s, c) => s + (c.duration || 0), 0));
     setTimeout(() => {
-      try {
-        if (recorder.state === 'recording') recorder.stop();
-      } catch (e) {
-        console.warn('stop error', e);
-      }
+      try { if (recorder.state === 'recording') recorder.stop(); } catch (e) { console.warn('stop error', e); }
     }, (totalDuration + 0.6) * 1000);
   }
 
