@@ -46,12 +46,10 @@ export async function extractPaletteFromFile(file: File, maxColors = 6): Promise
         const data = ctx.getImageData(0, 0, w, h).data;
         const counts = new Map<number, number>();
         // quantize to 5/6/5 bits to reduce unique colors
-        for (let i = 0; i < data.length; i += 4 * 3) {
-          // sample every 3rd pixel to speed up
+        for (let i = 0; i < data.length; i += 4) {
           const r = data[i];
           const g = data[i + 1];
           const b = data[i + 2];
-          // skip transparent
           const a = data[i + 3];
           if (a < 128) continue;
           const rq = r >> 3; // 5 bits
@@ -61,7 +59,6 @@ export async function extractPaletteFromFile(file: File, maxColors = 6): Promise
           counts.set(key, (counts.get(key) || 0) + 1);
         }
 
-        // sort buckets by count
         const entries = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
         const palette: string[] = [];
         for (let i = 0; i < Math.min(maxColors, entries.length); i++) {
@@ -69,7 +66,6 @@ export async function extractPaletteFromFile(file: File, maxColors = 6): Promise
           const rq = (key >> 11) & 0x1f;
           const gq = (key >> 5) & 0x3f;
           const bq = key & 0x1f;
-          // expand back to 0-255
           const r = clamp((rq << 3) | (rq >> 2));
           const g = clamp((gq << 2) | (gq >> 4));
           const b = clamp((bq << 3) | (bq >> 2));
@@ -80,8 +76,7 @@ export async function extractPaletteFromFile(file: File, maxColors = 6): Promise
         reject(err);
       }
     };
-    img.onerror = (e) => reject(new Error('image load error'));
-    // create blob URL
+    img.onerror = () => reject(new Error('image load error'));
     const url = URL.createObjectURL(file);
     img.crossOrigin = 'anonymous';
     img.src = url;
@@ -89,7 +84,6 @@ export async function extractPaletteFromFile(file: File, maxColors = 6): Promise
 }
 
 function isColorArray(a: any): boolean {
-  // Lottie colors are often arrays of 3 or 4 floats in 0..1
   return (
     Array.isArray(a) && (a.length === 3 || a.length === 4) && a.every((v: any) => typeof v === 'number' && v >= 0 && v <= 1)
   );
@@ -122,19 +116,34 @@ function findClosestHex(target: RGB, paletteHex: string[]) {
   return best;
 }
 
-export function applyPaletteToLottieJson(animationData: any, paletteHex: string[]) {
-  // Clone animationData to avoid mutating original
-  const clone = JSON.parse(JSON.stringify(animationData));
-
-  // Collect unique color arrays in clone
+export function getLottieColors(animationData: any): string[] {
   const unique: string[] = [];
   function collect(obj: any) {
     if (!obj || typeof obj !== 'object') return;
     for (const k of Object.keys(obj)) {
       const v = obj[k];
       if (isColorArray(v)) {
-        const rgb = colorArrayToRgb(v);
-        const hex = rgbToHex(rgb);
+        const hex = rgbToHex(colorArrayToRgb(v));
+        if (!unique.includes(hex)) unique.push(hex);
+      } else if (typeof v === 'object') {
+        collect(v);
+      }
+    }
+  }
+  collect(animationData);
+  return unique;
+}
+
+export function applyPaletteToLottieJson(animationData: any, paletteHex: string[]) {
+  const clone = JSON.parse(JSON.stringify(animationData));
+
+  const unique: string[] = [];
+  function collect(obj: any) {
+    if (!obj || typeof obj !== 'object') return;
+    for (const k of Object.keys(obj)) {
+      const v = obj[k];
+      if (isColorArray(v)) {
+        const hex = rgbToHex(colorArrayToRgb(v));
         if (!unique.includes(hex)) unique.push(hex);
       } else if (typeof v === 'object') {
         collect(v);
@@ -145,7 +154,6 @@ export function applyPaletteToLottieJson(animationData: any, paletteHex: string[
 
   if (!unique.length) return clone;
 
-  // Map each unique hex to closest palette hex
   const mapping: Record<string, string> = {};
   for (const u of unique) {
     const rgb = hexToRgb(u);
@@ -153,7 +161,6 @@ export function applyPaletteToLottieJson(animationData: any, paletteHex: string[
     mapping[u] = closest;
   }
 
-  // Replace function
   function replace(obj: any) {
     if (!obj || typeof obj !== 'object') return;
     for (const k of Object.keys(obj)) {
@@ -163,7 +170,6 @@ export function applyPaletteToLottieJson(animationData: any, paletteHex: string[
         const mapped = mapping[hex];
         if (mapped) {
           const norm = rgbToNormalizedArray(mapped);
-          // keep length same as original (3 or 4)
           if (v.length === 3) obj[k] = norm.slice(0, 3);
           else obj[k] = norm.slice(0, 4);
         }
